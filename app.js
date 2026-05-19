@@ -1,4 +1,4 @@
-﻿const $ = (sel) => document.querySelector(sel);
+const $ = (sel) => document.querySelector(sel);
 
 const SHARED_SYNC_ENABLED = location.protocol !== "file:";
 const STATUS_KEY = "audiencias_ct_convidado_status_v2";
@@ -418,14 +418,16 @@ function renderAvatarButton(p) {
       <button type="button" class="convidadoCard__avatar convidadoCard__avatar--photo" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
         <img src="${photoUrl}" alt="Foto de ${escapeHtml(p.nome)}" loading="lazy" decoding="async" />
       </button>
-      <button type="button" class="convidadoCard__photoRemove" data-photo-remove="${escapeHtml(p.id)}" aria-label="Excluir foto de ${escapeHtml(p.nome)}">Ã—</button>
+      <button type="button" class="convidadoCard__photoRemove" data-photo-remove="${escapeHtml(p.id)}" aria-label="Excluir foto de ${escapeHtml(p.nome)}">\u00d7</button>
     </div>`;
   }
 
-  return `<button type="button" class="convidadoCard__avatar" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
-    <span class="convidadoCard__initials">${escapeHtml(initials(p.nome))}</span>
-    <span class="convidadoCard__avatarHint" aria-hidden="true">+ foto</span>
-  </button>`;
+  return `<div class="convidadoCard__avatarWrap">
+    <button type="button" class="convidadoCard__avatar" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
+      <span class="convidadoCard__initials">${escapeHtml(initials(p.nome))}</span>
+      <span class="convidadoCard__avatarHint" aria-hidden="true">+ foto</span>
+    </button>
+  </div>`;
 }
 
 function pickPhotoForPerson(personId) {
