@@ -441,10 +441,16 @@ select.input option {
   margin-bottom: 12px;
 }
 
-.convidadoCard__avatar {
+.convidadoCard__avatarWrap {
+  position: relative;
   flex-shrink: 0;
   width: 104px;
   height: 104px;
+}
+
+.convidadoCard__avatar {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -496,6 +502,34 @@ select.input option {
   letter-spacing: 0.02em;
   background: rgba(0, 0, 0, 0.55);
   color: rgba(255, 255, 255, 0.92);
+}
+
+.convidadoCard__photoRemove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+  background: var(--danger);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.convidadoCard__photoRemove:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .convidadoCard__info {

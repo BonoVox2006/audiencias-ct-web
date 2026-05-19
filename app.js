@@ -1,4 +1,4 @@
-const $ = (sel) => document.querySelector(sel);
+﻿const $ = (sel) => document.querySelector(sel);
 
 const SHARED_SYNC_ENABLED = location.protocol !== "file:";
 const STATUS_KEY = "audiencias_ct_convidado_status_v2";
@@ -13,7 +13,7 @@ const photoCache = new Map();
 let pendingPhotoPersonId = null;
 let photoDbPromise = null;
 
-/** Estado compartilhado do evento aberto (todos os usuários). */
+/** Estado compartilhado do evento aberto (todos os usuÃ¡rios). */
 let sharedStatuses = {};
 let sharedPhotos = {};
 let sharedVersion = -1;
@@ -158,9 +158,9 @@ function applyRemoteEventState(remote, opts = {}) {
 
   const incoming =
     remote.photos && typeof remote.photos === "object" ? remote.photos : {};
+  sharedPhotos = {};
   for (const [id, url] of Object.entries(incoming)) {
     if (url) sharedPhotos[id] = url;
-    else delete sharedPhotos[id];
   }
 
   photoCache.clear();
@@ -232,7 +232,7 @@ async function syncEventFromServer() {
       renderConvidados();
     }
   } catch {
-    /* servidor indisponível */
+    /* servidor indisponÃ­vel */
   }
 }
 
@@ -309,6 +309,21 @@ async function savePhotoToIdb(eventId, personId, dataUrl) {
   });
 }
 
+async function deletePhotoFromIdb(eventId, personId) {
+  try {
+    const db = await openPhotoDb();
+    const key = photoStorageKey(eventId, personId);
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(PHOTO_STORE, "readwrite");
+      const req = tx.objectStore(PHOTO_STORE).delete(key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 async function getPhoto(personId) {
   if (photoCache.has(personId)) return photoCache.get(personId) || null;
   if (sharedPhotos[personId]) return sharedPhotos[personId];
@@ -330,6 +345,19 @@ async function savePhoto(personId, dataUrl) {
   photoCache.set(personId, dataUrl);
   sharedPhotos[personId] = dataUrl;
   await savePhotoToIdb(eventId, personId, dataUrl);
+
+  if (SHARED_SYNC_ENABLED) {
+    await pushSharedEventState(eventId);
+  }
+}
+
+async function removePhoto(personId) {
+  if (!currentEventId) throw new Error("Nenhum evento aberto.");
+  const eventId = currentEventId;
+
+  delete sharedPhotos[personId];
+  photoCache.delete(personId);
+  await deletePhotoFromIdb(eventId, personId);
 
   if (SHARED_SYNC_ENABLED) {
     await pushSharedEventState(eventId);
@@ -386,9 +414,12 @@ function renderAvatarButton(p) {
     : `Adicionar foto de ${p.nome} (galeria ou arquivo)`;
 
   if (hasPhoto) {
-    return `<button type="button" class="convidadoCard__avatar convidadoCard__avatar--photo" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
-      <img src="${photoUrl}" alt="Foto de ${escapeHtml(p.nome)}" loading="lazy" decoding="async" />
-    </button>`;
+    return `<div class="convidadoCard__avatarWrap">
+      <button type="button" class="convidadoCard__avatar convidadoCard__avatar--photo" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
+        <img src="${photoUrl}" alt="Foto de ${escapeHtml(p.nome)}" loading="lazy" decoding="async" />
+      </button>
+      <button type="button" class="convidadoCard__photoRemove" data-photo-remove="${escapeHtml(p.id)}" aria-label="Excluir foto de ${escapeHtml(p.nome)}">Ã—</button>
+    </div>`;
   }
 
   return `<button type="button" class="convidadoCard__avatar" data-photo-for="${escapeHtml(p.id)}" aria-label="${escapeHtml(label)}">
@@ -403,6 +434,20 @@ function pickPhotoForPerson(personId) {
   pendingPhotoPersonId = personId;
   input.value = "";
   input.click();
+}
+
+async function confirmRemovePhoto(personId) {
+  const p = convidados.find((c) => c.id === personId);
+  const nome = p?.nome || "este convidado";
+  if (!confirm(`Remover a foto de ${nome}?`)) return;
+  try {
+    setStatus("Removendo foto\u2026", "busy");
+    await removePhoto(personId);
+    renderConvidados();
+    setStatus(SHARED_SYNC_ENABLED ? "Foto removida para todos." : "Foto removida.", "");
+  } catch (err) {
+    setStatus(err?.message || "Erro ao remover foto.", "error");
+  }
 }
 
 /** @param {string} descricao */
@@ -682,6 +727,13 @@ function renderConvidados() {
         e.stopPropagation();
         const pid = btn.getAttribute("data-photo-for");
         if (pid) pickPhotoForPerson(pid);
+      });
+    });
+    card.querySelectorAll("[data-photo-remove]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pid = btn.getAttribute("data-photo-remove");
+        if (pid) void confirmRemovePhoto(pid);
       });
     });
     card.querySelectorAll(".statusBtn").forEach((btn) => {
