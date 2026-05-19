@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a1020" />
+    <meta
+      name="description"
+      content="Lista de convidados de audiências públicas das Comissões Temporárias."
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Audiências CT — Convidados</title>
+    <link rel="stylesheet" href="./styles.css?v=10" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__left">
+        <div class="brand">
+          <div class="brand__kicker">Comissões Temporárias</div>
+          <h1 class="brand__title">Convidados</h1>
+        </div>
+      </div>
+      <div class="topbar__right">
+        <button id="btnReload" class="btn btn--ghost btn--icon" type="button" hidden aria-label="Atualizar">↻</button>
+      </div>
+    </header>
+
+    <div id="statusBar" class="status" role="status" aria-live="polite"></div>
+
+    <main id="viewHome" class="view">
+      <section class="hero card">
+        <h2 class="hero__title">Audiências públicas</h2>
+        <p class="hero__text">
+          Escolha a comissão e a audiência. Toque na bolinha para
+          <strong>foto</strong> do convidado. Marque <strong>chegou</strong> ou
+          <strong>não vem</strong> — a equipe vê a mesma lista em tempo real (como no mapa de plenário).
+        </p>
+        <p class="hero__disclaimer">
+          Não é site oficial da Câmara. Dados via
+          <a href="https://dadosabertos.camara.leg.br/swagger/api.html" target="_blank" rel="noopener"
+            >Dados Abertos</a
+          >.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3 class="card__title">Comissão</h3>
+        <label class="field">
+          <span class="field__label">Buscar sigla ou nome</span>
+          <input id="orgaoSearch" class="input" type="search" placeholder="Ex.: CEXBRLEG" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="field__label">Órgão</span>
+          <select id="orgaoSelect" class="input">
+            <option value="">Carregando…</option>
+          </select>
+          <p id="orgaoHint" class="hint" aria-live="polite"></p>
+        </label>
+      </section>
+
+      <section class="card">
+        <h3 class="card__title">Audiências</h3>
+        <label class="field">
+          <span class="field__label">Tipo de evento</span>
+          <select id="tipoFilter" class="input">
+            <option value="audiencia" selected>Audiência pública</option>
+            <option value="">Todos</option>
+            <option value="reuniao">Reunião</option>
+            <option value="seminario">Seminário</option>
+          </select>
+        </label>
+        <div id="eventList" class="eventList" aria-live="polite">
+          <p class="muted">Selecione uma comissão acima.</p>
+        </div>
+        <p id="eventHint" class="hint" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <main id="viewEvento" class="view" hidden>
+      <nav class="breadcrumb">
+        <a href="#/" class="breadcrumb__link">← Voltar</a>
+      </nav>
+
+      <header class="eventHeader card">
+        <div class="eventHeader__meta">
+          <span id="eventTipo" class="pill"></span>
+          <span id="eventSituacao" class="pill pill--muted"></span>
+        </div>
+        <h2 id="eventTitulo" class="eventHeader__title"></h2>
+        <p id="eventQuando" class="eventHeader__when"></p>
+        <p id="eventLocal" class="eventHeader__local"></p>
+        <a id="eventLinkCamara" class="btn btn--block" href="#" target="_blank" rel="noopener noreferrer"
+          >Abrir na Câmara</a
+        >
+      </header>
+
+      <section class="card card--convidados">
+        <h3 class="card__title">Convidados</h3>
+        <label class="field">
+          <span class="sr-only">Buscar convidado</span>
+          <input id="participanteSearch" class="input" type="search" placeholder="Buscar convidado…" />
+        </label>
+
+        <div id="statusSummary" class="statusSummary" aria-live="polite"></div>
+
+        <p id="carometroStats" class="stats"></p>
+        <div id="carometroGrid" class="convidadosList" aria-label="Lista de convidados"></div>
+      </section>
+
+      <details class="card card--details">
+        <summary>Descrição do evento</summary>
+        <pre id="eventDescricao" class="descricao"></pre>
+      </details>
+    </main>
+
+    <input
+      id="photoFileInput"
+      type="file"
+      accept="image/*"
+      hidden
+      aria-hidden="true"
+      tabindex="-1"
+    />
+    <script src="./app.js?v=11"></script>
+  </body>
+</html>

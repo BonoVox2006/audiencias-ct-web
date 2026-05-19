@@ -1,0 +1,33 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/state"
+  to = "/.netlify/functions/state"
+  status = 200
+
+[[redirects]]
+  from = "/api/deputados"
+  to = "/.netlify/functions/deputados"
+  status = 200
+
+[[redirects]]
+  from = "/api/orgaos"
+  to = "/.netlify/functions/orgaos"
+  status = 200
+
+[[redirects]]
+  from = "/api/orgao"
+  to = "/.netlify/functions/orgao"
+  status = 200
+
+[[redirects]]
+  from = "/api/eventos"
+  to = "/.netlify/functions/eventos"
+  status = 200
+
+[[redirects]]
+  from = "/api/evento"
+  to = "/.netlify/functions/evento"
+  status = 200
