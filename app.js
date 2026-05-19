@@ -577,7 +577,7 @@ async function loadEventos(orgaoId) {
       const titulo =
         safeText(ev.descricao)
           .split(/\r?\n/)[0]
-          .slice(0, 100) || ev.descricaoTipo || `Evento ${ev.id}`;
+          .trim() || ev.descricaoTipo || `Evento ${ev.id}`;
       return `
         <article class="eventCard" tabindex="0" data-event-id="${ev.id}" role="button">
           <div class="eventCard__top">

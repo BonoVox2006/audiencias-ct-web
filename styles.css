@@ -304,6 +304,10 @@ select.input option {
   font-weight: 700;
   margin: 0 0 4px;
   font-size: 15px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .eventCard__when {
