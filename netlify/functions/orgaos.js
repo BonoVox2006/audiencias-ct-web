@@ -117,7 +117,7 @@ exports.handler = async (event) => {
       }
     }
 
-    for (const siglaFix of ["CEXBRLEG"]) {
+    for (const siglaFix of ["CEXBRLEG", "CEXEXPLO"]) {
       const fixed = await fetchOrgaoPorSigla(siglaFix);
       if (fixed && isCommissionActive(fixed) && classifyCommissionType(fixed) === "temporaria") {
         byId.set(String(fixed.id), mapOrgao(fixed));

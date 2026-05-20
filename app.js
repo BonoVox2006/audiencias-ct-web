@@ -1,4 +1,4 @@
-const $ = (sel) => document.querySelector(sel);
+﻿const $ = (sel) => document.querySelector(sel);
 
 const SHARED_SYNC_ENABLED = location.protocol !== "file:";
 const STATUS_KEY = "audiencias_ct_convidado_status_v2";
@@ -452,6 +452,67 @@ async function confirmRemovePhoto(personId) {
   }
 }
 
+function cleanConvidadoCargo(s) {
+  return safeText(s)
+    .replace(/\(confirmad[oa]\)/gi, "")
+    .replace(/\(REQ[^)]*\)/gi, "")
+    .replace(/\s*-\s*\(confirmad[oa]\)\s*/gi, "")
+    .replace(/;\s*$/g, "")
+    .replace(/\s+e\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeGuestLine(line) {
+  const t = safeText(line).trim();
+  if (!t || /^convidados?$/i.test(t)) return false;
+  if (/^[A-Z0-9ÁÉÍÓÚÂÊÔÃÇ][^,]{2,},/.test(t)) return true;
+  if (/^[A-ZÁÉÍÓÚÂÊÔÃÇ][A-ZÁÉÍÓÚÂÊÔÃÇ0-9\s.'-]{3,}\s*\(confirmad[oa]\)/i.test(t)) return true;
+  return false;
+}
+
+/** @param {string} rawBlock */
+function parseGuestBlock(rawBlock) {
+  const lines = safeText(rawBlock)
+    .replace(/\r\n/g, "\n")
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 1);
+  if (!lines.length) return null;
+
+  let first = lines[0].replace(/^e\s+/i, "").replace(/^-\s*/, "").trim();
+  if (/^convidados?$/i.test(first)) return null;
+
+  const confirmado = /\(confirmad[oa]\)/i.test(rawBlock);
+  const comma = first.indexOf(",");
+  let nome = "";
+  let cargo = "";
+
+  if (comma >= 3) {
+    nome = first.slice(0, comma).trim();
+    cargo = first.slice(comma + 1).trim();
+    if (lines.length > 1) {
+      const extra = lines.slice(1).join(" · ");
+      cargo = cargo ? `${cargo} · ${extra}` : extra;
+    }
+  } else {
+    nome = first.replace(/\(confirmad[oa]\)/gi, "").replace(/\s+/g, " ").trim();
+    cargo = lines.slice(1).join(" · ").trim();
+  }
+
+  nome = nome.replace(/\(confirmad[oa]\)/gi, "").replace(/\s+/g, " ").trim();
+  cargo = cleanConvidadoCargo(cargo);
+  if (!nome || nome.length < 3) return null;
+
+  return {
+    id: `conv-${slugKey(nome)}`,
+    nome,
+    cargo,
+    confirmado,
+    meta: confirmado ? "Confirmado na descri\u00e7\u00e3o" : "Previsto na descri\u00e7\u00e3o"
+  };
+}
+
 /** @param {string} descricao */
 function parseConvidados(descricao) {
   const text = safeText(descricao);
@@ -459,45 +520,60 @@ function parseConvidados(descricao) {
   if (!m || m.index == null) return [];
 
   let block = text.split(/\(\s*Requerimento\b/i)[0] || text;
-  block = block.slice(m.index + m[0].length);
-
-  const chunks = block
-    .replace(/\r\n/g, "\n")
-    .split(/\n|;\s*/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 4);
+  block = block.slice(m.index + m[0].length).trim();
 
   /** @type {typeof convidados} */
   const out = [];
   const seen = new Set();
 
-  for (let chunk of chunks) {
-    chunk = chunk.replace(/^e\s+/i, "").trim();
-    if (!chunk || /^convidados?$/i.test(chunk)) continue;
+  const paragraphs = block
+    .split(/\n\s*\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 4);
 
-    const comma = chunk.indexOf(",");
-    if (comma < 3) continue;
+  const blocks = paragraphs.length > 1 ? paragraphs : [];
 
-    const nome = chunk.slice(0, comma).trim();
-    let cargo = chunk.slice(comma + 1).trim();
-    const confirmado = /\(confirmad[oa]\)/i.test(cargo);
-    cargo = cargo
-      .replace(/\(confirmad[oa]\)/gi, "")
-      .replace(/;\s*$/g, "")
-      .replace(/\s+e\s*$/i, "")
-      .trim();
+  if (blocks.length === 0) {
+    const lines = block.split(/\n/).map((l) => l.trim()).filter((l) => l.length > 2);
+    let buf = [];
+    for (const line of lines) {
+      if (/^convidados?$/i.test(line)) continue;
+      if (looksLikeGuestLine(line) && buf.length) {
+        const g = parseGuestBlock(buf.join("\n"));
+        if (g && !seen.has(g.id)) {
+          seen.add(g.id);
+          out.push(g);
+        }
+        buf = [line];
+      } else {
+        buf.push(line);
+      }
+    }
+    if (buf.length) {
+      const g = parseGuestBlock(buf.join("\n"));
+      if (g && !seen.has(g.id)) {
+        seen.add(g.id);
+        out.push(g);
+      }
+    }
+  } else {
+    for (const part of blocks) {
+      const g = parseGuestBlock(part);
+      if (g && !seen.has(g.id)) {
+        seen.add(g.id);
+        out.push(g);
+      }
+    }
+  }
 
-    const key = slugKey(nome);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-
-    out.push({
-      id: `conv-${key}`,
-      nome,
-      cargo,
-      confirmado,
-      meta: confirmado ? "Confirmado na descri\u00e7\u00e3o" : "Previsto na descri\u00e7\u00e3o"
-    });
+  if (!out.length) {
+    for (const chunk of block.split(/;\s*\n?/).map((c) => c.trim()).filter((c) => c.length > 4)) {
+      const g = parseGuestBlock(chunk);
+      if (g && !seen.has(g.id)) {
+        seen.add(g.id);
+        out.push(g);
+      }
+    }
   }
 
   out.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
@@ -587,6 +663,7 @@ async function loadOrgaos() {
   const data = await apiGet("/api/orgaos");
   orgaos = Array.isArray(data?.dados) ? data.dados : [];
   await mergeOrgaoBySigla("CEXBRLEG");
+  await mergeOrgaoBySigla("CEXEXPLO");
   renderOrgaoOptions();
   orgaoSelect.value = "";
   if (eventHint) eventHint.textContent = "Selecione a comiss\u00e3o e depois toque na audi\u00eancia.";
