@@ -303,6 +303,16 @@ while ($true) {
             continue
           }
           $entry = Build-EventEntry $eventId
+          $part = if ($q.ContainsKey("part")) { [string]$q["part"] } else { "" }
+          if ($part -eq "meta") {
+            $entry = @{
+              eventId = $entry.eventId
+              statuses = $entry.statuses
+              photosOmitted = $true
+              version = $entry.version
+              updatedAt = $entry.updatedAt
+            }
+          }
           $payload = @{ dados = $entry } | ConvertTo-Json -Depth 8 -Compress
           $body = [Text.Encoding]::UTF8.GetBytes($payload)
           Write-HttpResponse $stream 200 "application/json; charset=utf-8" $body
@@ -336,13 +346,35 @@ while ($true) {
           $prev = Build-EventEntry $eventId
           $prevVersion = 0
           try { $prevVersion = [int]$prev.version } catch { $prevVersion = 0 }
-          Save-EventPhotosToDisk $eventId $photos
+          $keepPhotos = $false
+          if ($incoming.PSObject.Properties.Name -contains "keepPhotos") {
+            $keepPhotos = [bool]$incoming.keepPhotos
+          }
+          $hasPatch = $incoming.PSObject.Properties.Name -contains "photoPatch" -and $null -ne $incoming.photoPatch
+          if ($hasPatch) {
+            $photos = Load-EventPhotosFromDisk $eventId
+            foreach ($p in $incoming.photoPatch.PSObject.Properties) {
+              $url = [string]$p.Value
+              if ([string]::IsNullOrWhiteSpace($url)) {
+                $photos.Remove($p.Name)
+              } else {
+                $photos[$p.Name] = $url
+              }
+            }
+            Save-EventPhotosToDisk $eventId $photos
+          } elseif (-not $keepPhotos) {
+            Save-EventPhotosToDisk $eventId $photos
+          }
           $entry = @{
             eventId = $eventId
             statuses = $statuses
-            photos = (Load-EventPhotosFromDisk $eventId)
             version = ($prevVersion + 1)
             updatedAt = (Get-Date).ToString("o")
+          }
+          if ($keepPhotos -or $hasPatch) {
+            $entry.photosOmitted = $true
+          } else {
+            $entry.photos = (Load-EventPhotosFromDisk $eventId)
           }
           Save-EventMetaToDisk $entry
           $payload = @{ ok = $true; dados = $entry } | ConvertTo-Json -Depth 8 -Compress

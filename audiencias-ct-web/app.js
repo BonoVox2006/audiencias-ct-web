@@ -134,8 +134,8 @@ function saveStatus(eventId, personId, status) {
   if (SHARED_SYNC_ENABLED && String(currentEventId) === String(eventId)) {
     if (status === "pendente") delete sharedStatuses[personId];
     else sharedStatuses[personId] = status;
-    void pushSharedEventState(eventId).catch(() => {
-      setStatus("Falha ao sincronizar. Tente de novo.", "error");
+    void pushSharedEventState(eventId).catch((err) => {
+      setStatus(syncErrorMessage(err), "error");
     });
     return;
   }
@@ -254,16 +254,17 @@ function applyRemoteEventState(remote, opts = {}) {
   sharedStatuses =
     remote.statuses && typeof remote.statuses === "object" ? { ...remote.statuses } : {};
 
-  const incoming =
-    remote.photos && typeof remote.photos === "object" ? remote.photos : {};
-  sharedPhotos = {};
-  for (const [id, url] of Object.entries(incoming)) {
-    if (url) sharedPhotos[id] = url;
-  }
-
-  photoCache.clear();
-  for (const [id, url] of Object.entries(sharedPhotos)) {
-    if (url) photoCache.set(id, url);
+  const omitPhotos = remote.photosOmitted === true || remote.photos == null;
+  if (!omitPhotos) {
+    const incoming = typeof remote.photos === "object" ? remote.photos : {};
+    sharedPhotos = {};
+    for (const [id, url] of Object.entries(incoming)) {
+      if (url) sharedPhotos[id] = url;
+    }
+    photoCache.clear();
+    for (const [id, url] of Object.entries(sharedPhotos)) {
+      if (url) photoCache.set(id, url);
+    }
   }
   return true;
 }
@@ -290,8 +291,19 @@ async function loadPhotosFromIdb(eventId, personIds) {
   );
 }
 
-async function fetchSharedEventState(eventId) {
-  const res = await fetch(`/api/state?eventId=${encodeURIComponent(eventId)}`, {
+function syncErrorMessage(err) {
+  const msg = safeText(err?.message).replace(/\s+/g, " ").trim();
+  if (!msg || msg === "Failed to fetch" || /NetworkError|Load failed/i.test(msg)) {
+    return "Falha ao sincronizar. Sem conexão com o servidor.";
+  }
+  const short = msg.length > 160 ? `${msg.slice(0, 160)}…` : msg;
+  if (short.startsWith("Falha ao sincronizar")) return short;
+  return `Falha ao sincronizar. ${short}`;
+}
+
+async function fetchSharedEventState(eventId, part) {
+  const extra = part ? `&part=${encodeURIComponent(part)}` : "";
+  const res = await fetch(`/api/state?eventId=${encodeURIComponent(eventId)}${extra}`, {
     headers: { Accept: "application/json" }
   });
   if (!res.ok) throw new Error("Falha ao ler estado compartilhado.");
@@ -299,38 +311,66 @@ async function fetchSharedEventState(eventId) {
   return data?.dados || null;
 }
 
-async function pushSharedEventState(eventId) {
-  const res = await fetch("/api/state", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      eventId: String(eventId),
-      statuses: sharedStatuses,
-      photos: sharedPhotos
-    })
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const detail = safeText(data?.detail || data?.error);
-    throw new Error(detail || "Falha ao gravar estado compartilhado.");
+async function pushSharedEventState(eventId, opts = {}) {
+  const body = {
+    eventId: String(eventId),
+    statuses: sharedStatuses,
+    keepPhotos: true
+  };
+  if (opts.photoPatch && typeof opts.photoPatch === "object") {
+    body.keepPhotos = false;
+    body.photoPatch = opts.photoPatch;
   }
-  const out = data?.dados;
-  if (out) {
-    applyRemoteEventState(out, { force: true });
-    await syncPhotosToIdb(eventId, sharedPhotos);
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = safeText(data?.detail || data?.error);
+        throw new Error(detail || "Falha ao gravar estado compartilhado.");
+      }
+      const out = data?.dados;
+      if (out) {
+        applyRemoteEventState(out, { force: true });
+        if (!out.photosOmitted) await syncPhotosToIdb(eventId, sharedPhotos);
+      }
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
+  throw lastErr;
 }
 
 async function syncEventFromServer() {
   if (!currentEventId || !SHARED_SYNC_ENABLED) return;
   try {
-    const remote = await fetchSharedEventState(currentEventId);
-    if (applyRemoteEventState(remote)) {
+    const meta = await fetchSharedEventState(currentEventId, "meta");
+    if (!meta) return;
+    const remoteVersion = Number(meta.version ?? 0);
+    if (remoteVersion === sharedVersion) return;
+    const changed = applyRemoteEventState(meta, { force: true });
+    if (meta.photosOmitted) {
+      try {
+        const full = await fetchSharedEventState(currentEventId);
+        if (full) applyRemoteEventState(full, { force: true });
+      } catch {
+        /* as fotos deste aparelho continuam */
+      }
+    }
+    if (changed) {
       await syncPhotosToIdb(currentEventId, sharedPhotos);
       renderConvidados();
     }
   } catch {
-    /* servidor indisponÃ­vel */
+    /* servidor indisponível */
   }
 }
 
@@ -445,7 +485,7 @@ async function savePhoto(personId, dataUrl) {
   await savePhotoToIdb(eventId, personId, dataUrl);
 
   if (SHARED_SYNC_ENABLED) {
-    await pushSharedEventState(eventId);
+    await pushSharedEventState(eventId, { photoPatch: { [personId]: dataUrl } });
   }
 }
 
@@ -458,7 +498,7 @@ async function removePhoto(personId) {
   await deletePhotoFromIdb(eventId, personId);
 
   if (SHARED_SYNC_ENABLED) {
-    await pushSharedEventState(eventId);
+    await pushSharedEventState(eventId, { photoPatch: { [personId]: "" } });
   }
 }
 
