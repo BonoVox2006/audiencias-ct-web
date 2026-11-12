@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Audiências CT — presença no PLD",
+  "version": "1.0.4",
+  "description": "Quando o carômetro marca Chegou, grava Participou presencialmente no PLD da Câmara.",
+  "permissions": ["scripting", "tabs"],
+  "host_permissions": [
+    "https://infoleg-pld.camara.leg.br/*",
+    "https://infoleg-pld-hom.camara.leg.br/*",
+    "https://eventoscarometro.netlify.app/*",
+    "http://localhost:5175/*",
+    "http://127.0.0.1:5175/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://eventoscarometro.netlify.app/*",
+        "http://localhost:5175/*",
+        "http://127.0.0.1:5175/*"
+      ],
+      "js": ["ponte.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
